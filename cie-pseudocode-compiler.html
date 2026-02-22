@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>CIE 9618 Pseudocode Compiler</title>
+
+<style>
+/* ------------------------------------------
+   BASIC LAYOUT / STYLES
+-------------------------------------------*/
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #eef1f7;
+}
+
+header {
+    background: #4A4DE7;
+    color: white;
+    padding: 12px 16px;
+    font-size: 20px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+header .header-title {
+    flex: 1;
+}
+
+header select {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.15);
+    color: white;
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+}
+
+header select option {
+    background: #333;
+    color: white;
+}
+
+.main-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 52px);
+}
+
+.layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    flex: 1;
+    min-height: 0;
+}
+
+.col {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.panel {
+    background: white;
+    border-left: 1px solid #ccc;
+}
+
+.output {
+    background: black;
+    color: #0f0;
+    padding: 10px;
+    white-space: pre-wrap;
+    overflow: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ============================================
+   SYNTAX-HIGHLIGHTED EDITOR
+============================================ */
+
+.psc-editor-container {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    background: #1e1e2e;
+    overflow: hidden;
+}
+
+.psc-gutter {
+    width: 48px;
+    background: #181825;
+    padding: 12px 0;
+    overflow: hidden;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.psc-line-number {
+    height: 21px;
+    line-height: 21px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 14px;
+    color: #585b70;
+    text-align: right;
+    padding-right: 12px;
+}
+
+.psc-line-number.psc-gutter-error {
+    color: #f38ba8;
+    background: rgba(243, 139, 168, 0.1);
+}
+
+.psc-editor-area {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.psc-highlight, .psc-textarea {
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 21px;
+    padding: 12px;
+    margin: 0;
+    border: none;
+    white-space: pre;
+    overflow: auto;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    tab-size: 4;
+}
+
+.psc-highlight {
+    color: #cdd6f4;
+    background: #1e1e2e;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.psc-textarea {
+    color: transparent;
+    caret-color: #cdd6f4;
+    background: transparent;
+    outline: none;
+    resize: none;
+    z-index: 2;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Syntax highlight colours (Catppuccin Mocha inspired) */
+.psc-keyword  { color: #cba6f7; font-weight: bold; }
+.psc-type     { color: #f9e2af; }
+.psc-builtin  { color: #89b4fa; }
+.psc-string   { color: #a6e3a1; }
+.psc-number   { color: #fab387; }
+.psc-comment  { color: #6c7086; font-style: italic; }
+.psc-operator { color: #89dceb; }
+
+.psc-error-line {
+    background: rgba(243, 139, 168, 0.15);
+    display: inline;
+    box-shadow: 1000px 0 0 rgba(243, 139, 168, 0.15);
+}
+
+/* ============================================
+   TERMINAL STYLES
+============================================ */
+
+.tab-header {
+    display: flex;
+    background: #2a2a2a;
+    border-bottom: 1px solid #444;
+    flex-shrink: 0;
+}
+
+.tab-button {
+    padding: 10px 20px;
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.tab-button:hover {
+    background: #333;
+    color: #aaa;
+}
+
+.tab-button.active {
+    background: #1a1a1a;
+    color: #0f0;
+    border-bottom: 2px solid #0f0;
+}
+
+.terminal-panel {
+    background: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.terminal-output {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    font-family: Consolas, monospace;
+    font-size: 14px;
+    color: #0f0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.terminal-input-area {
+    display: flex;
+    padding: 8px 12px;
+    background: #0a0a0a;
+    border-top: 1px solid #333;
+    flex-shrink: 0;
+    align-items: flex-start;
+}
+
+.terminal-prompt {
+    color: #0f0;
+    font-family: Consolas, monospace;
+    font-size: 14px;
+    margin-right: 8px;
+    font-weight: bold;
+    padding-top: 4px;
+}
+
+.terminal-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: #0f0;
+    font-family: Consolas, monospace;
+    font-size: 14px;
+    outline: none;
+    caret-color: #0f0;
+    resize: none;
+    line-height: 1.4;
+}
+
+.terminal-input::placeholder {
+    color: #444;
+}
+
+.terminal-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.terminal-line {
+    margin-bottom: 4px;
+}
+
+.terminal-output-line {
+    color: #0f0;
+}
+
+.terminal-input-echo {
+    color: #4a9eff;
+}
+
+.terminal-error {
+    color: #ff4444;
+}
+
+.terminal-waiting {
+    color: #ffaa00;
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0.3; }
+}
+
+/* ============================================
+   CONTROLS
+============================================ */
+
+.controls {
+    padding: 8px 10px;
+    background: #313244;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    align-items: center;
+}
+
+.controls button {
+    padding: 8px 14px;
+    font-weight: bold;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.run    { background: #a6e3a1; color: #1e1e2e; }
+.run:hover { background: #94e296; }
+.stop   { background: #fab387; color: #1e1e2e; }
+.stop:hover { background: #f9a872; }
+.stop:disabled { background: #585b70; cursor: not-allowed; opacity: 0.5; color: #45475a; }
+.clear  { background: #f38ba8; color: #1e1e2e; }
+.clear:hover { background: #f17c9d; }
+.save   { background: #89b4fa; color: #1e1e2e; }
+.save:hover { background: #74a9f9; }
+.open   { background: #cba6f7; color: #1e1e2e; }
+.open:hover { background: #b895f4; }
+.controls-sep { width: 1px; background: #585b70; height: 24px; flex-shrink: 0; }
+
+/* Output panel */
+.output-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ============================================
+   FILES PANEL
+============================================ */
+
+.files-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #1a1a1a;
+    font-family: Consolas, monospace;
+    font-size: 13px;
+}
+
+.files-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #0a0a0a;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.files-toolbar input[type="text"] {
+    flex: 1;
+    background: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    color: #cdd6f4;
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    padding: 4px 8px;
+    outline: none;
+}
+
+.files-toolbar input[type="text"]:focus {
+    border-color: #89b4fa;
+}
+
+.files-toolbar button {
+    padding: 4px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    background: #89b4fa;
+    color: #1e1e2e;
+}
+
+.files-toolbar button:hover { background: #74a9f9; }
+
+.files-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.file-entry {
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.file-entry-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    background: #2a2a2a;
+    gap: 8px;
+}
+
+.file-entry-name {
+    flex: 1;
+    color: #89b4fa;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.file-entry-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+.file-entry-badge.written {
+    background: #a6e3a1;
+    color: #1e1e2e;
+}
+
+.file-entry-badge.user {
+    background: #cba6f7;
+    color: #1e1e2e;
+}
+
+.file-entry-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.file-entry-actions button {
+    padding: 2px 8px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.file-btn-download { background: #89b4fa; color: #1e1e2e; }
+.file-btn-download:hover { background: #74a9f9; }
+.file-btn-delete { background: #f38ba8; color: #1e1e2e; }
+.file-btn-delete:hover { background: #f17c9d; }
+
+.file-entry-content {
+    width: 100%;
+    min-height: 60px;
+    max-height: 150px;
+    background: #111;
+    border: none;
+    border-top: 1px solid #333;
+    color: #a6e3a1;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    padding: 6px 10px;
+    resize: vertical;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.file-entry-content:focus {
+    background: #141414;
+}
+
+.file-entry-content[readonly] {
+    color: #89b4fa;
+    cursor: default;
+}
+
+.files-empty {
+    color: #444;
+    text-align: center;
+    padding: 24px;
+    font-style: italic;
+}
+
+</style>
+
+</head>
+<body>
+
+<header>
+    <span class="header-title">CIE 9618 Pseudocode Compiler</span>
+    <select id="example-select" onchange="PSC_loadExample(this.value)">
+        <option value="">Load Example...</option>
+    </select>
+</header>
+
+<div class="main-container">
+
+<div class="layout">
+
+    <!-- LEFT COLUMN -->
+    <div class="col">
+        <div id="editor-container"></div>
+
+        <div class="controls">
+            <button class="run" onclick="PSC_runProgram()">Run</button>
+            <button class="stop" onclick="PSC_stopProgram()" disabled id="btn-stop">Stop</button>
+            <button class="clear" onclick="PSC_clearOutput()">Clear Console</button>
+            <div class="controls-sep"></div>
+            <button class="save" onclick="PSC_saveFile()">Save</button>
+            <button class="open" onclick="PSC_openFile()">Open</button>
+            <input type="file" id="file-open-input" accept=".psc,.txt" style="display:none" onchange="PSC_handleFileOpen(this)">
+        </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col panel">
+
+        <!-- TABS -->
+        <div class="tab-header">
+            <button class="tab-button active" onclick="PSC_switchTab('terminal', this)">Console</button>
+            <button class="tab-button" onclick="PSC_switchTab('files', this)">Files</button>
+            <button class="tab-button" onclick="PSC_switchTab('ir', this)">IR Code</button>
+        </div>
+
+        <!-- TERMINAL PANEL -->
+        <div id="pane-terminal" class="terminal-panel">
+            <div id="terminal-output" class="terminal-output"></div>
+            <div class="terminal-input-area">
+                <span class="terminal-prompt">&gt;</span>
+                <textarea id="terminal-input" class="terminal-input" rows="5" placeholder="Enter input here..." disabled></textarea>
+            </div>
+        </div>
+
+        <!-- FILES PANEL (hidden by default) -->
+        <div id="pane-files" class="files-panel" style="display: none;">
+            <div class="files-toolbar">
+                <input type="text" id="new-file-name" placeholder="filename.txt" />
+                <button onclick="PSC_createVirtualFile()">+ New File</button>
+            </div>
+            <div id="files-list" class="files-list">
+                <div class="files-empty" id="files-empty">No virtual files yet.<br>Create one here, or run a program that writes a file.</div>
+            </div>
+        </div>
+
+        <!-- IR CODE PANEL (hidden by default) -->
+        <div id="pane-ir" class="output-panel" style="display: none;">
+            <pre id="ir-code" class="output">IR code will appear here...</pre>
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+
+<!-- ============================================================
+     MODULAR SCRIPT LOADING
+============================================================ -->
+<script src="js/tokens.js"></script>
+<script src="js/lexer.js"></script>
+<script src="js/ast.js"></script>
+<script src="js/parser.js"></script>
+<script src="js/semantic.js"></script>
+<script src="js/ir-generator.js"></script>
+<script src="js/optimizer.js"></script>
+<script src="js/runtime.js"></script>
+<script src="js/debugger.js"></script>
+<script src="js/compiler.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/examples.js"></script>
+<script src="js/ui.js"></script>
+
+</body>
+</html>
